@@ -15,11 +15,14 @@
 
 package software.amazon.smithy.go.codegen.integration;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import software.amazon.smithy.codegen.core.CodegenException;
+import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.go.codegen.ApplicationProtocol;
 import software.amazon.smithy.go.codegen.GoDelegator;
@@ -34,6 +37,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.utils.CaseUtils;
+import software.amazon.smithy.utils.SmithyBuilder;
 import software.amazon.smithy.utils.StringUtils;
 
 /**
@@ -164,6 +168,7 @@ public interface ProtocolGenerator {
      * Generates the name of a serializer function for shapes of a service.
      *
      * @param shape    The shape the serializer function is being generated for.
+     * @param service  The service shape.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
@@ -177,6 +182,7 @@ public interface ProtocolGenerator {
      * Generates the name of a deserializer function for shapes of a service.
      *
      * @param shape    The shape the deserializer function is being generated for.
+     * @param service  The service shape.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
@@ -227,8 +233,8 @@ public interface ProtocolGenerator {
     /**
      * Generates the name of an error deserializer function for shapes of a service.
      *
-     * @param shape The error structure shape for which deserializer name is being generated.
-     * @param service The service enclosing the service shape.
+     * @param shape    The error structure shape for which deserializer name is being generated.
+     * @param service  The service enclosing the service shape.
      * @param protocol Name of the protocol being generated.
      * @return Returns the generated function name.
      */
@@ -252,7 +258,7 @@ public interface ProtocolGenerator {
     /**
      * Returns a map of error names to their {@link ShapeId}.
      *
-     * @param context the generation context
+     * @param context   the generation context
      * @param operation the operation shape to retrieve errors for
      * @return map of error names to {@link ShapeId}
      */
@@ -260,82 +266,163 @@ public interface ProtocolGenerator {
         return HttpProtocolGeneratorUtils.getOperationErrors(context, operation);
     }
 
+    default void generateProtocolDocumentMarshalerUnmarshalDocument(GenerationContext context) {
+        throw new CodegenException("document types not implemented for protocol");
+    }
+
+    default void generateProtocolDocumentMarshalerMarshalDocument(GenerationContext context) {
+        throw new CodegenException("document types not implemented for protocol");
+    }
+
+    default void generateProtocolDocumentUnmarshalerUnmarshalDocument(GenerationContext context) {
+        throw new CodegenException("document types not implemented for protocol");
+    }
+
+    default void generateProtocolDocumentUnmarshalerMarshalDocument(GenerationContext context) {
+        throw new CodegenException("document types not implemented for protocol");
+    }
+
+    default void generateNewDocumentMarshaler(GenerationContext context, Symbol marshalerSymbol) {
+        GoWriter writer = context.getWriter().get();
+        writer.openBlock("return &$T{", "}", marshalerSymbol, () -> {
+            writer.write("value: v,");
+        });
+    }
+
+    default void generateNewDocumentUnmarshaler(GenerationContext context, Symbol unmarshalerSymbol) {
+        GoWriter writer = context.getWriter().get();
+        writer.openBlock("return &$T{", "}", unmarshalerSymbol, () -> {
+            writer.write("value: v,");
+        });
+    }
+
     /**
      * Context object used for service serialization and deserialization.
      */
     class GenerationContext {
-        private GoSettings settings;
-        private Model model;
-        private ServiceShape service;
-        private SymbolProvider symbolProvider;
-        private GoWriter writer;
-        private List<GoIntegration> integrations;
-        private String protocolName;
-        private GoDelegator delegator;
+        private final GoSettings settings;
+        private final Model model;
+        private final ServiceShape service;
+        private final SymbolProvider symbolProvider;
+        private final GoWriter writer;
+        private final List<GoIntegration> integrations;
+        private final String protocolName;
+        private final GoDelegator delegator;
+
+        private GenerationContext(Builder builder) {
+            this.settings = SmithyBuilder.requiredState("settings", builder.settings);
+            this.model = SmithyBuilder.requiredState("model", builder.model);
+            this.service = SmithyBuilder.requiredState("service", builder.service);
+            this.symbolProvider = SmithyBuilder.requiredState("symbolProvider", builder.symbolProvider);
+            this.writer = builder.writer;
+            this.integrations = SmithyBuilder.requiredState("integrations", builder.integrations);
+            this.protocolName = SmithyBuilder.requiredState("protocolName", builder.protocolName);
+            this.delegator = SmithyBuilder.requiredState("delegator", builder.delegator);
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public Builder toBuilder() {
+            return builder()
+                    .settings(this.settings)
+                    .model(this.model)
+                    .service(this.service)
+                    .symbolProvider(this.symbolProvider)
+                    .writer(this.writer)
+                    .integrations(this.integrations)
+                    .protocolName(this.protocolName)
+                    .delegator(this.delegator);
+        }
 
         public GoSettings getSettings() {
             return settings;
-        }
-
-        public void setSettings(GoSettings settings) {
-            this.settings = settings;
         }
 
         public Model getModel() {
             return model;
         }
 
-        public void setModel(Model model) {
-            this.model = model;
-        }
-
         public ServiceShape getService() {
             return service;
-        }
-
-        public void setService(ServiceShape service) {
-            this.service = service;
         }
 
         public SymbolProvider getSymbolProvider() {
             return symbolProvider;
         }
 
-        public void setSymbolProvider(SymbolProvider symbolProvider) {
-            this.symbolProvider = symbolProvider;
-        }
-
-        public GoWriter getWriter() {
-            return writer;
-        }
-
-        public void setWriter(GoWriter writer) {
-            this.writer = writer;
+        public Optional<GoWriter> getWriter() {
+            return Optional.ofNullable(writer);
         }
 
         public GoDelegator getDelegator() {
             return delegator;
         }
 
-        public void setDelegator(GoDelegator delegator) {
-            this.delegator = delegator;
-        }
-
         public List<GoIntegration> getIntegrations() {
             return integrations;
-        }
-
-        public void setIntegrations(List<GoIntegration> integrations) {
-            this.integrations = integrations;
         }
 
         public String getProtocolName() {
             return protocolName;
         }
 
-        // TODO change to shape id of protocol shape id
-        public void setProtocolName(String protocolName) {
-            this.protocolName = protocolName;
+        public static class Builder implements SmithyBuilder<GenerationContext> {
+            private GoSettings settings;
+            private Model model;
+            private ServiceShape service;
+            private SymbolProvider symbolProvider;
+            private GoWriter writer;
+            private final List<GoIntegration> integrations = new ArrayList<>();
+            private String protocolName;
+            private GoDelegator delegator;
+
+            public Builder settings(GoSettings settings) {
+                this.settings = settings;
+                return this;
+            }
+
+            public Builder model(Model model) {
+                this.model = model;
+                return this;
+            }
+
+            public Builder service(ServiceShape service) {
+                this.service = service;
+                return this;
+            }
+
+            public Builder symbolProvider(SymbolProvider symbolProvider) {
+                this.symbolProvider = symbolProvider;
+                return this;
+            }
+
+            public Builder writer(GoWriter writer) {
+                this.writer = writer;
+                return this;
+            }
+
+            public Builder integrations(Collection<GoIntegration> integrations) {
+                this.integrations.clear();
+                this.integrations.addAll(integrations);
+                return this;
+            }
+
+            public Builder protocolName(String protocolName) {
+                this.protocolName = protocolName;
+                return this;
+            }
+
+            public Builder delegator(GoDelegator delegator) {
+                this.delegator = delegator;
+                return this;
+            }
+
+            @Override
+            public GenerationContext build() {
+                return new GenerationContext(this);
+            }
         }
     }
 }

@@ -107,6 +107,10 @@ final class StructureGenerator implements Runnable {
         });
 
         runnable.run();
+
+        writer.write("");
+        writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
+
         writer.closeBlock("}").write("");
     }
 
@@ -134,6 +138,9 @@ final class StructureGenerator implements Runnable {
                     writer.write("$L $P", memberName, symbolProvider.toSymbol(member));
                 }
             }
+
+            writer.write("");
+            writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
         }).write("");
 
         // write the Error method to satisfy the standard error interface

@@ -81,7 +81,7 @@ public class HttpProtocolTestGenerator {
         this.service = context.getService();
         this.protocolName = context.getProtocolName();
         this.symbolProvider = context.getSymbolProvider();
-        this.writer = context.getWriter();
+        this.writer = context.getWriter().get();
         this.delegator = context.getDelegator();
 
         this.requestTestBuilder = requestTestBuilder;

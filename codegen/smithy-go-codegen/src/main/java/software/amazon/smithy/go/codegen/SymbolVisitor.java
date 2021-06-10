@@ -408,8 +408,8 @@ final class SymbolVisitor implements SymbolProvider, ShapeVisitor<Symbol> {
 
     @Override
     public Symbol documentShape(DocumentShape shape) {
-        String name = getDefaultShapeName(shape);
-        return symbolBuilderFor(shape, name, SmithyGoDependency.SMITHY)
+        return ProtocolDocumentGenerator.Utilities.getDocumentSymbolBuilder(settings,
+                ProtocolDocumentGenerator.DOCUMENT_INTERFACE_NAME)
                 .build();
     }
 

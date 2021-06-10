@@ -91,13 +91,13 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
         Symbol inputSymbol = symbolProvider.toSymbol(inputShape);
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol requestType = applicationProtocol.getRequestType();
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
 
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createSerializeStepMiddleware(
                 ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), service, getProtocolName()),
                 ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
 
-        middleware.writeMiddleware(context.getWriter(), (generator, w) -> {
+        middleware.writeMiddleware(context.getWriter().get(), (generator, w) -> {
             writer.addUseImports(SmithyGoDependency.SMITHY);
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
@@ -232,7 +232,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     private void generateOperationDeserializer(GenerationContext context, OperationShape operation) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         ServiceShape service = context.getService();
         StructureShape outputShape = ProtocolUtils.expectOutput(context.getModel(), operation);
         Symbol outputSymbol = symbolProvider.toSymbol(outputShape);
@@ -311,7 +311,7 @@ public abstract class HttpRpcProtocolGenerator implements ProtocolGenerator {
     protected abstract void deserializeOutputDocument(GenerationContext context, OperationShape operation);
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         String functionName = ProtocolGenerator.getErrorDeserFunctionName(
                 shape, context.getService(), context.getProtocolName());
         Symbol responseType = getApplicationProtocol().getResponseType();

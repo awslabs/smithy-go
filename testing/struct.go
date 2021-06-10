@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/aws/smithy-go/document"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -20,6 +21,7 @@ func CompareValues(expect, actual interface{}, opts ...cmp.Option) error {
 	opts = append(opts,
 		cmp.Transformer("http.NoBody", transformHTTPNoBodyToNil),
 		cmp.FilterValues(skippedReaders.filter, cmp.Ignore()),
+		cmp.Comparer(compareDocumentTypes),
 	)
 
 	if diff := cmp.Diff(expect, actual, opts...); len(diff) != 0 {
@@ -37,6 +39,23 @@ func CompareValues(expect, actual interface{}, opts ...cmp.Option) error {
 	}
 
 	return nil
+}
+
+type documentInterface interface {
+	document.SmithyDocumentMarshaler
+	document.SmithyDocumentUnmarshaler
+}
+
+func compareDocumentTypes(x documentInterface, y documentInterface) bool {
+	xBytes, err := x.MarshalSmithyDocument()
+	if err != nil {
+		panic(fmt.Sprintf("MarshalSmithyDocument error: %v", err))
+	}
+	yBytes, err := y.MarshalSmithyDocument()
+	if err != nil {
+		panic(fmt.Sprintf("MarshalSmithyDocument error: %v", err))
+	}
+	return JSONEqual(xBytes, yBytes) == nil
 }
 
 func transformHTTPNoBodyToNil(v io.Reader) io.Reader {
