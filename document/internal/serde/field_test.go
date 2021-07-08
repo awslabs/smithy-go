@@ -22,7 +22,7 @@ type unionComplex struct {
 }
 
 type unionTagged struct {
-	A int `json:"A"`
+	A int `document:"A"`
 }
 
 type unionTaggedComplex struct {

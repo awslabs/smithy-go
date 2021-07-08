@@ -266,22 +266,122 @@ public interface ProtocolGenerator {
         return HttpProtocolGeneratorUtils.getOperationErrors(context, operation);
     }
 
+    /**
+     * Generates the UnmarshalSmithyDocument function body of the service's internal documentMarshaler type.
+     * <p>
+     * The document marshaler type is expected to handle user provided Go types and convert them to protocol documents.
+     * <p>
+     * The default implementation will throw a {@code CodegenException} if not implemented.
+     *
+     * <pre>{@code
+     * type documentMarshaler struct {
+     *     value interface{}
+     * }
+     *
+     * // ...
+     *
+     * func (m *documentMarshaler) UnmarshalSmithyDocument(v interface{}) error {
+     *      // Generated code from generateProtocolDocumentMarshalerUnmarshalDocument
+     * }
+     * }</pre>
+     *
+     * @param context the generation context.
+     */
     default void generateProtocolDocumentMarshalerUnmarshalDocument(GenerationContext context) {
-        throw new CodegenException("document types not implemented for protocol");
+        throw new CodegenException("document types not implemented for " + this.getProtocolName() + " protocol");
     }
 
+    /**
+     * Generates the UnmarshalSmithyDocument function body of the service's internal documentMarshaler type.
+     * <p>
+     * The document marshaler type is expected to handle user provided Go types and convert them to protocol documents.
+     * <p>
+     * The default implementation will throw a {@code CodegenException} if not implemented.
+     *
+     * <pre>{@code
+     * type documentMarshaler struct {
+     *     value interface{}
+     * }
+     *
+     * // ...
+     *
+     * func (m *documentMarshaler) MarshalSmithyDocument() ([]byte, error) {
+     *      // Generated code from generateProtocolDocumentMarshalerMarshalDocument
+     * }
+     * }</pre>
+     *
+     * @param context the generation context.
+     */
     default void generateProtocolDocumentMarshalerMarshalDocument(GenerationContext context) {
-        throw new CodegenException("document types not implemented for protocol");
+        throw new CodegenException("document types not implemented for " + this.getProtocolName() + " protocol");
     }
 
+    /**
+     * Generates the UnmarshalSmithyDocument function body of the service's internal documentUnmarshaler type.
+     * <p>
+     * The document unmarshaler type is expected to handle protocol documents received from the service and provide the
+     * ability to unmarshal or round-trip the document.
+     * <p>
+     * The default implementation will throw a {@code CodegenException} if not implemented.
+     *
+     * <pre>{@code
+     * type documentUnmarshaler struct {
+     *     value interface{}
+     * }
+     *
+     * // ...
+     *
+     * func (m *documentUnmarshaler) UnmarshalSmithyDocument(v interface{}) error {
+     *      // Generated code from generateProtocolDocumentUnmarshalerUnmarshalDocument
+     * }
+     * }</pre>
+     *
+     * @param context the generation context.
+     */
     default void generateProtocolDocumentUnmarshalerUnmarshalDocument(GenerationContext context) {
-        throw new CodegenException("document types not implemented for protocol");
+        throw new CodegenException("document types not implemented for " + this.getProtocolName() + " protocol");
     }
 
+    /**
+     * Generates the MarshalSmithyDocument function body of the service's internal documentUnmarshaler type.
+     * <p>
+     * The document unmarshaler type is expected to handle protocol documents received from the service and provide the
+     * ability to unmarshal or round-trip the document.
+     * <p>
+     * The default implementation will throw a {@code CodegenException} if not implemented.
+     *
+     * <pre>{@code
+     * type documentUnmarshaler struct {
+     *     value interface{}
+     * }
+     *
+     * // ...
+     *
+     * func (m *documentUnmarshaler) MarshalSmithyDocument() ([]byte, error) {
+     *      // Generated code from generateProtocolDocumentUnmarshalerMarshalDocument
+     * }
+     * }</pre>
+     *
+     * @param context the generation context.
+     */
     default void generateProtocolDocumentUnmarshalerMarshalDocument(GenerationContext context) {
-        throw new CodegenException("document types not implemented for protocol");
+        throw new CodegenException("document types not implemented for " + this.getProtocolName() + " protocol");
     }
 
+    /**
+     * Generate the internal constructor function body for the service's internal documentMarshaler type.
+     *
+     * <pre>{@code
+     * func NewDocumentMarshaler(v interface{}) Interface {
+     *     return &documentMarshaler{
+     *         value: v,
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param context         the generation context.
+     * @param marshalerSymbol the symbol for the {@code documentMarshaler} type.
+     */
     default void generateNewDocumentMarshaler(GenerationContext context, Symbol marshalerSymbol) {
         GoWriter writer = context.getWriter().get();
         writer.openBlock("return &$T{", "}", marshalerSymbol, () -> {
@@ -289,6 +389,20 @@ public interface ProtocolGenerator {
         });
     }
 
+    /**
+     * Generate the internal constructor function body for the service's internal documentUnmarshaler type.
+     *
+     * <pre>{@code
+     * func NewDocumentUnmarshaler(v interface{}) Interface {
+     *     return &documentUnmarshaler{
+     *         value: v,
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param context           the generation context.
+     * @param unmarshalerSymbol the symbol for the {@code documentUnmarshaler} type.
+     */
     default void generateNewDocumentUnmarshaler(GenerationContext context, Symbol unmarshalerSymbol) {
         GoWriter writer = context.getWriter().get();
         writer.openBlock("return &$T{", "}", unmarshalerSymbol, () -> {

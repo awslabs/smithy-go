@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,18 +15,21 @@
 
 package software.amazon.smithy.go.codegen;
 
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import software.amazon.smithy.codegen.core.Symbol;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator;
 import software.amazon.smithy.go.codegen.integration.ProtocolGenerator.GenerationContext;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.DocumentShape;
+import software.amazon.smithy.model.knowledge.NeighborProviderIndex;
+import software.amazon.smithy.model.neighbor.Walker;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.utils.IoUtils;
 
 /**
- * Generates the Smithy document type for the service client.
+ * Generates the service's internal and external document Go packages. The document packages contain the service
+ * specific document Interface definition, protocol specific document marshaler and unmarshaller implementations for
+ * that interface, and constructors for creating service document types.
  */
 public final class ProtocolDocumentGenerator {
     public static final String DOCUMENT_INTERFACE_NAME = "Interface";
@@ -41,11 +44,10 @@ public final class ProtocolDocumentGenerator {
     private static final String SERVICE_SMITHY_DOCUMENT_INTERFACE = "smithyDocument";
     private static final String IS_SMITHY_DOCUMENT_METHOD = "isSmithyDocument";
 
-
     private final GoSettings settings;
     private final GoDelegator delegator;
-    private final Set<DocumentShape> documentShapes = new TreeSet<>();
     private final Model model;
+    private final boolean hasDocumentShapes;
 
     public ProtocolDocumentGenerator(
             GoSettings settings,
@@ -55,54 +57,100 @@ public final class ProtocolDocumentGenerator {
         this.settings = settings;
         this.model = model;
         this.delegator = delegator;
+
+        NeighborProviderIndex index = NeighborProviderIndex.of(this.model);
+        Walker walker = new Walker(index.getProvider());
+        boolean documentShapesPresent = false;
+        for (Shape shape : walker.walkShapes(settings.getService(model), relationship -> {
+            switch (relationship.getRelationshipType()) {
+                case OPERATION:
+                case STRUCTURE_MEMBER:
+                case MAP_VALUE:
+                case SET_MEMBER:
+                case UNION_MEMBER:
+                case LIST_MEMBER:
+                case ERROR:
+                case OUTPUT:
+                case INPUT:
+                case MEMBER_TARGET:
+                case MEMBER_CONTAINER:
+                    return true;
+                default:
+                    return false;
+            }
+        })) {
+            if (shape.asDocumentShape().isPresent()) {
+                documentShapesPresent = true;
+                break;
+            }
+        }
+        this.hasDocumentShapes = documentShapesPresent;
     }
 
     /**
-     * Get the set of document shapes for the service.
-     *
-     * @return the service's document shapes.
+     * Generates any required client types or functions to support protocol document types.
      */
-    public Set<DocumentShape> getDocumentShapes() {
-        return documentShapes;
-    }
-
-    /**
-     * Returns whether the service has any document shapes.
-     *
-     * @return whether the service has one or more document types.
-     */
-    public boolean hasDocumentShapes() {
-        return getDocumentShapes().size() > 0;
-    }
-
-    /**
-     * Add a document shape to the generator.
-     *
-     * @param shape the document shape to add.
-     */
-    public void addDocumentShape(DocumentShape shape) {
-        documentShapes.add(shape);
-    }
-
-    /**
-     *
-     */
-    public void generateStandardTypes() {
+    public void generateDocumentSupport() {
         generateNoSerdeType();
         generateInternalDocumentInterface();
         generateDocumentPackage();
     }
 
+    /**
+     * Generates the publicly accessible service document package. This package contains a type alias definition
+     * for document interface, as well as a constructor function for creating a document marshaller.
+     * <p>
+     * This package is not generated if the service does not have any document shapes in the model.
+     *
+     * <pre>{@code
+     * // <servicePath>/document
+     * package document
+     *
+     * import (
+     *      internaldocument "<servicePath>/internal/document"
+     * )
+     *
+     * type Interface = internaldocument.Interface
+     *
+     * func NewLazyDocument(v interface{}) Interface {
+     *      return internaldocument.NewDocumentMarshaler(v)
+     * }
+     * }</pre>
+     */
     private void generateDocumentPackage() {
-        if (!hasDocumentShapes()) {
+        if (!this.hasDocumentShapes) {
             return;
         }
 
+        writeDocumentPackage("doc.go", writer -> {
+            String documentTemplate = IoUtils.readUtf8Resource(getClass(), "document_doc.go.template");
+            writer.writeRawPackageDocs(documentTemplate);
+        });
+
         writeDocumentPackage("document.go", writer -> {
+            writer.writeDocs(String.format("%s defines a document which is a protocol-agnostic type which supports a "
+                    + "JSON-like data-model. You can use this type to send UTF-8 strings, arbitrary precision "
+                    + "numbers, booleans, nulls, a list of these values, and a map of UTF-8 strings to these "
+                    + "values.", DOCUMENT_INTERFACE_NAME));
+            writer.writeDocs("");
+            writer.writeDocs(String.format("You create a document type using the %s function and passing it the Go "
+                    + "type to marshal. When receiving a document in an API response, you use the "
+                    + "document's UnmarshalSmithyDocument function to decode the response to your desired Go "
+                    + "type. Unless documented specifically generated structure types in client packages or "
+                    + "client types packages are not supported at this time. Such types embed a "
+                    + "noSmithyDocumentSerde and will cause an error to be returned when attempting to send an "
+                    + "API request.", NEW_LAZY_DOCUMENT));
+            writer.writeDocs("");
+            writer.writeDocs("For more information see the accompanying package documentation and linked references.");
             writer.write("type $L = $T", DOCUMENT_INTERFACE_NAME,
                             getInternalDocumentSymbol(DOCUMENT_INTERFACE_NAME))
                     .write("");
 
+            writer.writeDocs(String.format("You create document type using the %s function and passing it the Go "
+                    + "type to be marshaled and sent to the service. The document marshaler supports semantics similar "
+                    + "to the encoding/json Go standard library.", NEW_LAZY_DOCUMENT));
+            writer.writeDocs("");
+            writer.writeDocs("For more information see the accompanying package documentation and linked references.");
             writer.openBlock("func $L(v interface{}) $T {", "}", NEW_LAZY_DOCUMENT,
                             getDocumentSymbol(DOCUMENT_INTERFACE_NAME), () -> {
                                 writer.write("return $T(v)",
@@ -112,6 +160,28 @@ public final class ProtocolDocumentGenerator {
         });
     }
 
+    /**
+     * Generates an unexported type alias for the {@code github.com/aws/smithy-go/document#NoSerde} type in both the
+     * service and types package. This allows for this type to be used as an embedded member in structures to
+     * prevent usage of generated Smithy structure shapes as document types. Additionally, since the member is
+     * unexported this prevents the need de-conflict naming collisions.
+     * <p>
+     * These type aliases are always generated regardless of whether there are document shapes present in the model
+     * or not.
+     *
+     * <pre>{@code
+     * package types
+     *
+     * type noSmithyDocumentSerde = smithydocument.NoSerde
+     *
+     * type ExampleStructureShape struct {
+     *      FieldOne *string
+     *
+     *      noSmithyDocumentSerde
+     * }
+     *
+     * }</pre>
+     */
     private void generateNoSerdeType() {
         Symbol noSerde = SymbolUtils.createValueSymbolBuilder("NoSerde",
                 SmithyGoDependency.SMITHY_DOCUMENT).build();
@@ -125,30 +195,52 @@ public final class ProtocolDocumentGenerator {
         });
     }
 
+    /**
+     * Generates the document interface definition in the internal document package.
+     *
+     * <pre>{@code
+     * import smithydocument "github.com/aws/smithy-go/document"
+     *
+     * type smithyDocument interface {
+     *      isSmithyDocument()
+     * }
+     *
+     * type Interface interface {
+     *      smithydocument.Marshaler
+     *      smithydocument.Unmarshaler
+     *      smithyDocument
+     * }
+     * }</pre>
+     */
     private void generateInternalDocumentInterface() {
-        if (!hasDocumentShapes()) {
+        if (!this.hasDocumentShapes) {
             return;
         }
 
-        writeInternalDocumentPackage("document.go", writer -> {
-            Symbol serviceSmithyDocumentInterface = getInternalDocumentSymbol(SERVICE_SMITHY_DOCUMENT_INTERFACE);
+        Symbol serviceSmithyDocumentInterface = getInternalDocumentSymbol(SERVICE_SMITHY_DOCUMENT_INTERFACE);
+        Symbol internalDocumentInterface = getInternalDocumentSymbol(DOCUMENT_INTERFACE_NAME);
+        Symbol smithyDocumentMarshaler = SymbolUtils.createValueSymbolBuilder("Marshaler",
+                SmithyGoDependency.SMITHY_DOCUMENT).build();
+        Symbol smithyDocumentUnmarshaler = SymbolUtils.createValueSymbolBuilder("Unmarshaler",
+                SmithyGoDependency.SMITHY_DOCUMENT).build();
 
+        writeInternalDocumentPackage("document.go", writer -> {
+            writer.writeDocs(String.format("%s is an interface which is used to bind"
+                    + " a document type to its service client.", serviceSmithyDocumentInterface));
             writer.openBlock("type $T interface {", "}", serviceSmithyDocumentInterface,
                             () -> writer.write("$L()", IS_SMITHY_DOCUMENT_METHOD))
                     .write("");
 
-            Symbol internalDocumentInterface = getInternalDocumentSymbol(DOCUMENT_INTERFACE_NAME);
-            Symbol smithyDocumentMarshaler = SymbolUtils.createValueSymbolBuilder("SmithyDocumentMarshaler",
-                    SmithyGoDependency.SMITHY_DOCUMENT).build();
-            Symbol smithyDocumentUnmarshaler = SymbolUtils.createValueSymbolBuilder("SmithyDocumentUnmarshaler",
-                    SmithyGoDependency.SMITHY_DOCUMENT).build();
-
+            writer.writeDocs(String.format("%s is a JSON-like data model type that is protocol agnostic and is used"
+                    + "to send open-content to a service.", internalDocumentInterface));
             writer.openBlock("type $T interface {", "}", internalDocumentInterface, () -> {
                 writer.write("$T", serviceSmithyDocumentInterface);
                 writer.write("$T", smithyDocumentMarshaler);
                 writer.write("$T", smithyDocumentUnmarshaler);
             }).write("");
+        });
 
+        writeInternalDocumentPackage("document_test.go", writer -> {
             writer.write("var _ $T = ($P)(nil)",
                     serviceSmithyDocumentInterface, internalDocumentInterface);
             writer.write("var _ $T = ($P)(nil)",
@@ -163,16 +255,65 @@ public final class ProtocolDocumentGenerator {
     /**
      * Generates the internal document Go package for the service client. Delegates the logic for document marshaling
      * and unmarshalling types to the provided protocol generator using the given context.
+     * <p>
+     * Generate a document marshaler type for marshaling documents to the service's protocol document format.
+     *
+     * <pre>{@code
+     * type documentMarshaler struct {
+     *     value interface{}
+     * }
+     *
+     * func NewDocumentMarshaler(v interface{}) Interface {
+     *     // default or protocol implementation
+     * }
+     *
+     * func (m *documentMarshaler) UnmarshalSmithyDocument(v interface{}) error {
+     *     // implemented by protocol generator
+     * }
+     *
+     * func (m *documentUnmarshaler) MarshalSmithyDocument() ([]byte, error) {
+     *     // implemented by protocol generator
+     * }
+     * }</pre>
+     * <p>
+     * Generate a document marshaler type for unmarshalling documents from the service's protocol response to a Go
+     * type.
+     *
+     * <pre>{@code
+     * type documentUnmarshaler struct {
+     *     value interface{}
+     * }
+     * func NewDocumentUnmarshaler(v interface{}) Interface {
+     *     // default or protocol implementation
+     * }
+     *
+     * func (m *documentUnmarshaler) UnmarshalSmithyDocument(v interface{}) error {
+     *     // implemented by protocol generator
+     * }
+     *
+     * func (m *documentUnmarshaler) MarshalSmithyDocument() ([]byte, error) {
+     *     // implemented by protocol generator
+     * }
+     * }</pre>
+     * <p>
+     * Generate {@code IsInterface} function which is used to assert whether a given document type
+     * is a valid service protocol document type implementation.
+     *
+     * <pre>{@code
+     * func IsInterface(v Interface) bool {
+     *     // implementation
+     * }
+     * }</pre>
      *
      * @param protocolGenerator the protocol generator.
      * @param context           the protocol generator context.
      */
     public void generateInternalDocumentTypes(ProtocolGenerator protocolGenerator, GenerationContext context) {
-        if (!hasDocumentShapes()) {
+        if (!this.hasDocumentShapes) {
             return;
         }
 
-        delegator.useFileWriter(getInternalDocumentFilePath("document.go"), getInternalDocumentPackage(), writer -> {
+        writeInternalDocumentPackage("document.go", writer -> {
             Symbol marshalerSymbol = getInternalDocumentSymbol("documentMarshaler",
                     true);
             Symbol unmarshalerSymbol = getInternalDocumentSymbol("documentUnmarshaler", true);
@@ -207,6 +348,8 @@ public final class ProtocolDocumentGenerator {
 
             Symbol documentInterfaceSymbol = getInternalDocumentSymbol(DOCUMENT_INTERFACE_NAME);
 
+            writer.writeDocs(String.format("%s creates a new document marshaler for the given input type",
+                    INTERNAL_NEW_DOCUMENT_MARSHALER_FUNC));
             writer.openBlock("func $L(v interface{}) $T {", "}", INTERNAL_NEW_DOCUMENT_MARSHALER_FUNC,
                     documentInterfaceSymbol, () -> {
                         protocolGenerator.generateNewDocumentMarshaler(context.toBuilder()
@@ -214,6 +357,8 @@ public final class ProtocolDocumentGenerator {
                                 .build(), marshalerSymbol);
                     }).write("");
 
+            writer.writeDocs(String.format("%s creates a new document unmarshaler for the given service response",
+                    INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC));
             writer.openBlock("func $L(v interface{}) $T {", "}", INTERNAL_NEW_DOCUMENT_UNMARSHALER_FUNC,
                     documentInterfaceSymbol, () -> {
                         protocolGenerator.generateNewDocumentUnmarshaler(context.toBuilder()
@@ -221,6 +366,8 @@ public final class ProtocolDocumentGenerator {
                                 .build(), unmarshalerSymbol);
                     }).write("");
 
+            writer.writeDocs(String.format("%s returns whether the given Interface implementation is"
+                    + " a valid client implementation", isDocumentInterface));
             writer.openBlock("func $T(v Interface) (ok bool) {", "}", isDocumentInterface, () -> {
                 writer.openBlock("defer func() {", "}()", () -> {
                     writer.openBlock("if err := recover(); err != nil {", "}", () -> writer.write("ok = false"));

@@ -23,15 +23,18 @@ func (c *fieldCacher) LoadOrStore(t interface{}, fs *CachedFields) (*CachedField
 	return v.(*CachedFields), ok
 }
 
+// CachedFields is a cache entry for a type's fields.
 type CachedFields struct {
 	fields       []Field
 	fieldsByName map[string]int
 }
 
+// All returns all the fields for the cached type.
 func (f *CachedFields) All() []Field {
 	return f.fields
 }
 
+// FieldByName retrieves a field by name.
 func (f *CachedFields) FieldByName(name string) (Field, bool) {
 	if i, ok := f.fieldsByName[name]; ok {
 		return f.fields[i], ok

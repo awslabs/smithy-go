@@ -257,6 +257,20 @@ public final class GoWriter extends CodeWriter {
     }
 
     /**
+     * Writes the doc to the Go package docs that are written prior to the go package statement. This does not perform
+     * line wrapping and the provided formatting must be valid Go doc.
+     *
+     * @param docs documentation to write to package doc.
+     * @return writer
+     */
+    public GoWriter writeRawPackageDocs(String docs) {
+        writeDocs(packageDocs, () -> {
+            packageDocs.write(docs);
+        });
+        return this;
+    }
+
+    /**
      * Writes shape documentation comments if docs are present.
      *
      * @param shape Shape to write the documentation of.

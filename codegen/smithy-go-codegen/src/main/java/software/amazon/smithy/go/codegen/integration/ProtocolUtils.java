@@ -210,8 +210,4 @@ public final class ProtocolUtils {
 
         lambda.accept(acceptVar);
     }
-
-    public static void writeDocumentInterfaceCheck(GenerationContext context, GoWriter writer) {
-
-    }
 }

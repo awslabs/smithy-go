@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// Tag represents the `document` struct field tag and associated options
 type Tag struct {
 	Name      string
 	Ignore    bool

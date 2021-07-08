@@ -17,6 +17,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -167,7 +168,7 @@ public final class ShapeValueGenerator {
                 ProtocolDocumentGenerator.NEW_LAZY_DOCUMENT).build();
 
         writer.writeInline("$T(", newMarshaler);
-        new DocumentValueNodeVisitor(writer).getDefault(params);
+        params.accept(new DocumentValueNodeVisitor(writer));
         writer.writeInline(")");
     }
 
@@ -407,7 +408,7 @@ public final class ShapeValueGenerator {
         }
     }
 
-    private static final class DocumentValueNodeVisitor extends NodeVisitor.Default<Void> {
+    private static final class DocumentValueNodeVisitor implements NodeVisitor<Void> {
         private final GoWriter writer;
 
         private DocumentValueNodeVisitor(GoWriter writer) {
@@ -418,7 +419,7 @@ public final class ShapeValueGenerator {
         public Void arrayNode(ArrayNode node) {
             writer.writeInline("[]interface{}{\n");
             for (Node element : node.getElements()) {
-                getDefault(element);
+                element.accept(this);
                 writer.writeInline(",\n");
             }
             writer.writeInline("}");
@@ -444,7 +445,17 @@ public final class ShapeValueGenerator {
         @Override
         public Void numberNode(NumberNode node) {
             if (node.isNaturalNumber()) {
-                writer.writeInline("$L", node.getValue());
+                Number value = node.getValue();
+                if (value instanceof BigInteger) {
+                    writer.addUseImports(SmithyGoDependency.BIG);
+                    writer.writeInline("func () *big.Int {\n"
+                            + "\ti, ok := (&big.Int{}).SetString($S, 10)\n"
+                            + "\tif !ok { panic(\"failed to parse string to integer: \" + $S) }\n"
+                            + "\treturn i\n"
+                            + "}()", value, value);
+                } else {
+                    writer.writeInline("$L", node.getValue());
+                }
             } else {
                 Number value = node.getValue();
                 if (value instanceof Float) {
@@ -468,7 +479,7 @@ public final class ShapeValueGenerator {
             writer.writeInline("map[string]interface{}{\n");
             node.getMembers().forEach((key, value) -> {
                 writer.writeInline("$S: ", key.getValue());
-                getDefault(value);
+                value.accept(this);
                 writer.writeInline(",\n");
             });
             writer.writeInline("}");
@@ -478,32 +489,6 @@ public final class ShapeValueGenerator {
         @Override
         public Void stringNode(StringNode node) {
             writer.writeInline("$S", node.getValue());
-            return null;
-        }
-
-        public Void getDefault(Node node) {
-            switch (node.getType()) {
-                case OBJECT:
-                    objectNode(node.expectObjectNode());
-                    break;
-                case ARRAY:
-                    arrayNode(node.expectArrayNode());
-                    break;
-                case STRING:
-                    stringNode(node.expectStringNode());
-                    break;
-                case NUMBER:
-                    numberNode(node.expectNumberNode());
-                    break;
-                case BOOLEAN:
-                    booleanNode(node.expectBooleanNode());
-                    break;
-                case NULL:
-                    nullNode(node.expectNullNode());
-                    break;
-                default:
-                    throw new CodegenException("unknown node type: " + node.getType());
-            }
             return null;
         }
     }

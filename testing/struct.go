@@ -42,8 +42,8 @@ func CompareValues(expect, actual interface{}, opts ...cmp.Option) error {
 }
 
 type documentInterface interface {
-	document.SmithyDocumentMarshaler
-	document.SmithyDocumentUnmarshaler
+	document.Marshaler
+	document.Unmarshaler
 }
 
 func compareDocumentTypes(x documentInterface, y documentInterface) bool {

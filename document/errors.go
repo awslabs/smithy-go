@@ -6,7 +6,8 @@ import (
 )
 
 // UnmarshalTypeError is an error type representing aa error
-// unmarshalling a Smithy document to a Go value type.
+// unmarshalling a Smithy document to a Go value type. This is different
+// from UnmarshalError in that it does not wrap an underlying error type.
 type UnmarshalTypeError struct {
 	Value string
 	Type  reflect.Type
@@ -49,7 +50,7 @@ type UnmarshalError struct {
 	Type  reflect.Type
 }
 
-// Unwrap returnbs the underlying unmarshalling error
+// Unwrap returns the underlying unmarshalling error
 func (e *UnmarshalError) Unwrap() error {
 	return e.Err
 }
@@ -62,7 +63,7 @@ func (e *UnmarshalError) Error() string {
 }
 
 // An InvalidMarshalError is an error type representing an error
-// occurring when marshaling a Go value type to an AttributeValue.
+// occurring when marshaling a Go value type.
 type InvalidMarshalError struct {
 	Message string
 }

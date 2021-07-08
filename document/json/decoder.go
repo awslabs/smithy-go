@@ -10,24 +10,39 @@ import (
 	"github.com/aws/smithy-go/document/internal/serde"
 )
 
+// DecoderOptions is the set of options that can be configured for a Decoder.
 type DecoderOptions struct{}
 
+// Decoder is a Smithy document decoder for JSON based protocols.
 type Decoder struct {
 	options DecoderOptions
 }
 
-func (d *Decoder) DecodeJSONInterface(json interface{}, value interface{}) error {
-	if document.IsNoSerde(value) {
-		return fmt.Errorf("unsupported type: %T", value)
+// DecodeJSONInterface decodes the supported JSON input types and stores the result in the value pointed by toValue.
+//
+// If toValue is not a compatible type, or an error occurs while decoding DecodeJSONInterface will return an error.
+//
+// The supported input JSON types are:
+//   bool -> JSON boolean
+//   float64 -> JSON number
+//   json.Number -> JSON number
+//   string -> JSON string
+//   []interface{} -> JSON array
+//   map[string]interface{} -> JSON object
+//   nil -> JSON null
+//
+func (d *Decoder) DecodeJSONInterface(input interface{}, toValue interface{}) error {
+	if document.IsNoSerde(toValue) {
+		return fmt.Errorf("unsupported type: %T", toValue)
 	}
 
-	v := reflect.ValueOf(value)
+	v := reflect.ValueOf(toValue)
 
 	if v.Kind() != reflect.Ptr || v.IsNil() || !v.IsValid() {
-		return &document.InvalidUnmarshalError{Type: reflect.TypeOf(value)}
+		return &document.InvalidUnmarshalError{Type: reflect.TypeOf(toValue)}
 	}
 
-	return d.decode(json, v, serde.Tag{})
+	return d.decode(input, v, serde.Tag{})
 }
 
 func (d *Decoder) decode(jv interface{}, rv reflect.Value, tag serde.Tag) error {
@@ -168,9 +183,6 @@ func (d *Decoder) decodeJSONNumber(tv json.Number, rv reflect.Value) error {
 func (d *Decoder) decodeJSONFloat64(tv float64, rv reflect.Value) error {
 	switch rv.Kind() {
 	case reflect.Interface:
-		if rv.NumMethod() != 0 {
-			return &document.UnmarshalTypeError{Value: "number", Type: rv.Type()}
-		}
 		rv.Set(reflect.ValueOf(tv))
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		i, accuracy := big.NewFloat(tv).Int64()
@@ -323,6 +335,10 @@ func (d *Decoder) decodeJSONObject(tv map[string]interface{}, rv reflect.Value) 
 }
 
 func (d *Decoder) unsupportedType(jv interface{}, rv reflect.Value) error {
+	if rv.Kind() == reflect.Interface && rv.NumMethod() != 0 {
+		return &document.UnmarshalTypeError{Value: "non-empty interface", Type: rv.Type()}
+	}
+
 	if rv.Type().ConvertibleTo(serde.ReflectTypeOf.Time) {
 		return &document.UnmarshalTypeError{
 			Type:  rv.Type(),

@@ -7,6 +7,7 @@ import (
 
 const tagKey = "document"
 
+// Field is represents a struct field, tag, type, and index.
 type Field struct {
 	Tag
 

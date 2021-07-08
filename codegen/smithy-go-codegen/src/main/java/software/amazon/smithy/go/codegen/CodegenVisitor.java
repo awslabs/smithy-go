@@ -39,7 +39,6 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.knowledge.ServiceIndex;
 import software.amazon.smithy.model.knowledge.TopDownIndex;
 import software.amazon.smithy.model.neighbor.Walker;
-import software.amazon.smithy.model.shapes.DocumentShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -168,8 +167,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             shape.accept(this);
         }
 
-        // Generate standard DocumentShape interface
-        protocolDocumentGenerator.generateStandardTypes();
+        // Generate any required types and functions need to support protocol documents.
+        protocolDocumentGenerator.generateDocumentSupport();
 
         // Generate a struct to handle unknown tags in unions
         List<UnionShape> unions = serviceShapes.stream()
@@ -232,12 +231,6 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
     @Override
     protected Void getDefault(Shape shape) {
-        return null;
-    }
-
-    @Override
-    public Void documentShape(DocumentShape shape) {
-        protocolDocumentGenerator.addDocumentShape(shape);
         return null;
     }
 

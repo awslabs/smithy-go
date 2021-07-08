@@ -10,12 +10,15 @@ import (
 	smithyjson "github.com/aws/smithy-go/encoding/json"
 )
 
+// EncoderOptions is the set of options that can be configured for an Encoder.
 type EncoderOptions struct{}
 
+// Encoder is a Smithy document decoder for JSON based protocols.
 type Encoder struct {
 	options EncoderOptions
 }
 
+// Encode returns the JSON encoding of v.
 func (e *Encoder) Encode(v interface{}) ([]byte, error) {
 	if document.IsNoSerde(v) {
 		return nil, fmt.Errorf("unsupported type: %v", v)
@@ -36,31 +39,36 @@ func (e *Encoder) Encode(v interface{}) ([]byte, error) {
 	return encodedBytes, nil
 }
 
+// valueProvider is an interface for retrieving a JSON Value type used for encoding.
+type valueProvider interface {
+	GetValue() smithyjson.Value
+}
+
+// jsonValueProvider is a valueProvider that returns the JSON value encoder as is.
 type jsonValueProvider smithyjson.Value
 
 func (p jsonValueProvider) GetValue() smithyjson.Value {
 	return smithyjson.Value(p)
 }
 
-type valueProvider interface {
-	GetValue() smithyjson.Value
-}
-
+// jsonObjectKeyProvider is a valueProvider that returns a JSON value type for encoding a value for the given JSON object
+// key.
 type jsonObjectKeyProvider struct {
 	Object *smithyjson.Object
 	Key    string
 }
 
+func (p jsonObjectKeyProvider) GetValue() smithyjson.Value {
+	return p.Object.Key(p.Key)
+}
+
+// jsonArrayProvider is a valueProvider that returns a JSON value type for encoding a value in the given JSON array.
 type jsonArrayProvider struct {
 	Array *smithyjson.Array
 }
 
 func (p jsonArrayProvider) GetValue() smithyjson.Value {
 	return p.Array.Value()
-}
-
-func (p jsonObjectKeyProvider) GetValue() smithyjson.Value {
-	return p.Object.Key(p.Key)
 }
 
 func (e *Encoder) encode(vp valueProvider, rv reflect.Value, tag serde.Tag) error {

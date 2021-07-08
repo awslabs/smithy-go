@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// ReflectTypeOf is a structure containing various reflect.Type members that are useful
+// to document Marshaler or Unmarshaler implementations.
 var ReflectTypeOf = struct {
 	BigFloat             reflect.Type
 	BigInt               reflect.Type

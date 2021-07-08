@@ -47,6 +47,7 @@ func Indirect(v reflect.Value, decodingNull bool) reflect.Value {
 	return v
 }
 
+// PtrToValue given the input value will dereference pointers and returning the element pointed to.
 func PtrToValue(in interface{}) interface{} {
 	v := reflect.ValueOf(in)
 	if v.Kind() == reflect.Ptr {
@@ -61,6 +62,7 @@ func PtrToValue(in interface{}) interface{} {
 	return v.Interface()
 }
 
+// IsZeroValue returns whether v is the zero-value for its type.
 func IsZeroValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Invalid:
@@ -85,6 +87,7 @@ func IsZeroValue(v reflect.Value) bool {
 	return false
 }
 
+// ValueElem walks interface and pointer types and returns the underlying element.
 func ValueElem(v reflect.Value) reflect.Value {
 	switch v.Kind() {
 	case reflect.Interface, reflect.Ptr:

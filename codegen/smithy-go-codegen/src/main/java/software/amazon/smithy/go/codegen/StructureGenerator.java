@@ -108,6 +108,11 @@ final class StructureGenerator implements Runnable {
 
         runnable.run();
 
+        // At this moment there is no support for the concept of modeled document structure types.
+        // We embed the NoSerde type to prevent usage of the generated structure shapes from being used
+        // as document types themselves, or part of broader document-type structures. This avoids making backwards
+        // incompatible changes if the document type representation changes if it is later annotated as a modeled
+        // document type. This restriction may be relaxed later by removing this constraint.
         writer.write("");
         writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
 
