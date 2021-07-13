@@ -84,6 +84,8 @@ public class UnionGenerator {
                 } else {
                     writer.write("Value $P", memberSymbol);
                 }
+                writer.write("");
+                writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
             });
 
             writer.write("func (*$L) is$L() {}", exportedMemberName, symbol.getName());
@@ -154,6 +156,8 @@ public class UnionGenerator {
             writer.write("Tag string");
             // The value received.
             writer.write("Value []byte");
+            writer.write("");
+            writer.write("$L", ProtocolDocumentGenerator.NO_DOCUMENT_SERDE_TYPE_NAME);
         });
 
         for (UnionShape union : unions) {

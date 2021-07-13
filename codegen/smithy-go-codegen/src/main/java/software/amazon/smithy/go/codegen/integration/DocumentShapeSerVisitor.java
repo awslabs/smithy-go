@@ -320,7 +320,7 @@ public abstract class DocumentShapeSerVisitor extends ShapeVisitor.Default<Void>
             BiConsumer<GenerationContext, Shape> functionBody
     ) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
 
         Symbol symbol = symbolProvider.toSymbol(shape);
 

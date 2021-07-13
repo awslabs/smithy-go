@@ -66,7 +66,7 @@ public final class HttpProtocolGeneratorUtils {
             Consumer<GenerationContext> errorMessageCodeGenerator,
             BiFunction<GenerationContext, OperationShape, Map<String, ShapeId>> operationErrorsToShapes
     ) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         ServiceShape service = context.getService();
         String protocolName = context.getProtocolName();
         Set<StructureShape> errorShapes = new TreeSet<>();

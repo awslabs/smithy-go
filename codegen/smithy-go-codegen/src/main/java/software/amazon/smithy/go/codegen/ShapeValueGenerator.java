@@ -17,6 +17,7 @@
 
 package software.amazon.smithy.go.codegen;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,6 +56,7 @@ import software.amazon.smithy.utils.SmithyBuilder;
 public final class ShapeValueGenerator {
     private static final Logger LOGGER = Logger.getLogger(ShapeValueGenerator.class.getName());
 
+    private final GoSettings settings;
     private final Model model;
     private final SymbolProvider symbolProvider;
     private final GoPointableIndex pointableIndex;
@@ -63,21 +65,24 @@ public final class ShapeValueGenerator {
     /**
      * Initializes a shape value generator.
      *
+     * @param settings       the Smithy Go settings.
      * @param model          the Smithy model references.
      * @param symbolProvider the symbol provider.
      */
-    public ShapeValueGenerator(Model model, SymbolProvider symbolProvider) {
-        this(model, symbolProvider, Config.builder().build());
+    public ShapeValueGenerator(GoSettings settings, Model model, SymbolProvider symbolProvider) {
+        this(settings, model, symbolProvider, Config.builder().build());
     }
 
     /**
      * Initializes a shape value generator.
      *
+     * @param settings       the Smithy Go settings.
      * @param model          the Smithy model references.
      * @param symbolProvider the symbol provider.
      * @param config         the shape value generator config.
      */
-    public ShapeValueGenerator(Model model, SymbolProvider symbolProvider, Config config) {
+    public ShapeValueGenerator(GoSettings settings, Model model, SymbolProvider symbolProvider, Config config) {
+        this.settings = settings;
         this.model = model;
         this.symbolProvider = symbolProvider;
         this.pointableIndex = GoPointableIndex.of(model);
@@ -150,13 +155,21 @@ public final class ShapeValueGenerator {
                 break;
 
             case DOCUMENT:
-                LOGGER.warning("Skipping " + member.getType() + " shape type not supported, " + member.getId());
-                writer.writeInline("nil");
+                documentDeclShapeValue(writer, member, params);
                 break;
 
             default:
                 writeScalarPointerInline(writer, member, params);
         }
+    }
+
+    private void documentDeclShapeValue(GoWriter writer, MemberShape member, Node params) {
+        Symbol newMarshaler = ProtocolDocumentGenerator.Utilities.getDocumentSymbolBuilder(settings,
+                ProtocolDocumentGenerator.NEW_LAZY_DOCUMENT).build();
+
+        writer.writeInline("$T(", newMarshaler);
+        params.accept(new DocumentValueNodeVisitor(writer));
+        writer.writeInline(")");
     }
 
     /**
@@ -395,6 +408,91 @@ public final class ShapeValueGenerator {
         }
     }
 
+    private static final class DocumentValueNodeVisitor implements NodeVisitor<Void> {
+        private final GoWriter writer;
+
+        private DocumentValueNodeVisitor(GoWriter writer) {
+            this.writer = writer;
+        }
+
+        @Override
+        public Void arrayNode(ArrayNode node) {
+            writer.writeInline("[]interface{}{\n");
+            for (Node element : node.getElements()) {
+                element.accept(this);
+                writer.writeInline(",\n");
+            }
+            writer.writeInline("}");
+            return null;
+        }
+
+        @Override
+        public Void booleanNode(BooleanNode node) {
+            if (node.getValue()) {
+                writer.writeInline("true");
+            } else {
+                writer.writeInline("false");
+            }
+            return null;
+        }
+
+        @Override
+        public Void nullNode(NullNode node) {
+            writer.writeInline("nil");
+            return null;
+        }
+
+        @Override
+        public Void numberNode(NumberNode node) {
+            if (node.isNaturalNumber()) {
+                Number value = node.getValue();
+                if (value instanceof BigInteger) {
+                    writer.addUseImports(SmithyGoDependency.BIG);
+                    writer.writeInline("func () *big.Int {\n"
+                            + "\ti, ok := (&big.Int{}).SetString($S, 10)\n"
+                            + "\tif !ok { panic(\"failed to parse string to integer: \" + $S) }\n"
+                            + "\treturn i\n"
+                            + "}()", value, value);
+                } else {
+                    writer.writeInline("$L", node.getValue());
+                }
+            } else {
+                Number value = node.getValue();
+                if (value instanceof Float) {
+                    writer.writeInline("float32($L)", value.floatValue(), value);
+                } else if (value instanceof Double) {
+                    writer.writeInline("float64($L)", value.doubleValue(), value);
+                } else {
+                    writer.addUseImports(SmithyGoDependency.BIG);
+                    writer.writeInline("func () *big.Float {\n"
+                            + "\tf, ok := (&big.Float{}).SetString($S)\n"
+                            + "\tif !ok { panic(\"failed to parse string to float: \" + $S) }\n"
+                            + "\treturn f\n"
+                            + "}()", value, value);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public Void objectNode(ObjectNode node) {
+            writer.writeInline("map[string]interface{}{\n");
+            node.getMembers().forEach((key, value) -> {
+                writer.writeInline("$S: ", key.getValue());
+                value.accept(this);
+                writer.writeInline(",\n");
+            });
+            writer.writeInline("}");
+            return null;
+        }
+
+        @Override
+        public Void stringNode(StringNode node) {
+            writer.writeInline("$S", node.getValue());
+            return null;
+        }
+    }
+
     /**
      * NodeVisitor to walk shape value declarations with node values.
      */
@@ -499,7 +597,7 @@ public final class ShapeValueGenerator {
                         String keyValue = keyNode.getValue();
                         if (config.isNormalizeHttpPrefixHeaderKeys()) {
                             keyValue = OptionalUtils.or(getTrait(HttpPrefixHeadersTrait.class),
-                                    () -> mapShape.getTrait(HttpPrefixHeadersTrait.class))
+                                            () -> mapShape.getTrait(HttpPrefixHeadersTrait.class))
                                     .map(httpPrefixHeadersTrait -> keyNode.getValue().toLowerCase())
                                     .orElse(keyValue);
                         }
@@ -667,5 +765,4 @@ public final class ShapeValueGenerator {
             return Optional.empty();
         }
     }
-
 }

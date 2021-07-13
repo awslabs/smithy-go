@@ -54,6 +54,8 @@ public final class SmithyGoDependency {
     public static final GoDependency SMITHY_RAND = smithy("rand", "smithyrand");
     public static final GoDependency SMITHY_TESTING = smithy("testing", "smithytesting");
     public static final GoDependency SMITHY_WAITERS = smithy("waiter", "smithywaiter");
+    public static final GoDependency SMITHY_DOCUMENT = smithy("document", "smithydocument");
+    public static final GoDependency SMITHY_DOCUMENT_JSON = smithy("document/json", "smithydocumentjson");
 
     public static final GoDependency GO_CMP = goCmp("cmp");
     public static final GoDependency GO_CMP_OPTIONS = goCmp("cmp/cmpopts");

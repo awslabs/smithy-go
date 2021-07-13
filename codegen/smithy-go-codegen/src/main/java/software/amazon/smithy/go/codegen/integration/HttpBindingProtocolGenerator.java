@@ -196,7 +196,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
                 ProtocolGenerator.getSerializeMiddlewareName(operation.getId(), service, getProtocolName()),
                 ProtocolUtils.OPERATION_SERIALIZER_MIDDLEWARE_ID);
 
-        middleware.writeMiddleware(context.getWriter(), (generator, writer) -> {
+        middleware.writeMiddleware(context.getWriter().get(), (generator, writer) -> {
             writer.addUseImports(SmithyGoDependency.FMT);
             writer.addUseImports(SmithyGoDependency.SMITHY);
             writer.addUseImports(SmithyGoDependency.SMITHY_HTTP_BINDING);
@@ -283,7 +283,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
 
         ApplicationProtocol applicationProtocol = getApplicationProtocol();
         Symbol responseType = applicationProtocol.getResponseType();
-        GoWriter goWriter = context.getWriter();
+        GoWriter goWriter = context.getWriter().get();
 
         GoStackStepMiddlewareGenerator middleware = GoStackStepMiddlewareGenerator.createDeserializeStepMiddleware(
                 ProtocolGenerator.getDeserializeMiddlewareName(operation.getId(), service, getProtocolName()),
@@ -401,7 +401,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             GenerationContext context,
             MemberShape memberShape
     ) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         Model model = context.getModel();
         Shape payloadShape = model.expectShape(memberShape.getTarget());
 
@@ -536,7 +536,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private void generateOperationHttpBindingSerializer(GenerationContext context, OperationShape operation) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
 
         Shape inputShape = model.expectShape(operation.getInput()
                 .orElseThrow(() -> new CodegenException("missing input shape for operation: " + operation.getId())));
@@ -678,7 +678,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             GenerationContext context,
             HttpBinding binding
     ) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         Model model = context.getModel();
         MemberShape memberShape = binding.getMember();
         Shape targetShape = model.expectShape(memberShape.getTarget());
@@ -784,7 +784,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String dest,
             boolean isQueryParams
     ) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
 
         if (targetShape instanceof CollectionShape) {
             MemberShape collectionMember = CodegenUtils.expectCollectionShape(targetShape)
@@ -813,7 +813,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
             String locationName,
             String dest
     ) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         Model model = context.getModel();
         Shape targetShape = model.expectShape(memberShape.getTarget());
 
@@ -881,7 +881,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     private void generateHttpBindingDeserializer(GenerationContext context, Shape shape) {
         SymbolProvider symbolProvider = context.getSymbolProvider();
         Model model = context.getModel();
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
 
         HttpBindingIndex bindingIndex = model.getKnowledge(HttpBindingIndex.class);
         List<HttpBinding> bindings = bindingIndex.getResponseBindings(shape).values().stream()
@@ -1281,7 +1281,7 @@ public abstract class HttpBindingProtocolGenerator implements ProtocolGenerator 
     protected abstract void generateDocumentBodyShapeDeserializers(GenerationContext context, Set<Shape> shapes);
 
     private void generateErrorDeserializer(GenerationContext context, StructureShape shape) {
-        GoWriter writer = context.getWriter();
+        GoWriter writer = context.getWriter().get();
         String functionName = ProtocolGenerator.getErrorDeserFunctionName(
                 shape, context.getService(), context.getProtocolName());
         Symbol responseType = getApplicationProtocol().getResponseType();

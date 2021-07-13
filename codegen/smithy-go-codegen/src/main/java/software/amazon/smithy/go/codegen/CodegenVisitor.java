@@ -69,6 +69,7 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
     private final ProtocolGenerator protocolGenerator;
     private final ApplicationProtocol applicationProtocol;
     private final List<RuntimeClientPlugin> runtimePlugins = new ArrayList<>();
+    private final ProtocolDocumentGenerator protocolDocumentGenerator;
 
     CodegenVisitor(PluginContext context) {
         // Load all integrations.
@@ -125,6 +126,8 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
                 : protocolGenerator.getApplicationProtocol();
 
         writers = new GoDelegator(settings, model, fileManifest, symbolProvider);
+
+        protocolDocumentGenerator = new ProtocolDocumentGenerator(settings, model, writers);
     }
 
     private static ProtocolGenerator resolveProtocolGenerator(
@@ -164,6 +167,9 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             shape.accept(this);
         }
 
+        // Generate any required types and functions need to support protocol documents.
+        protocolDocumentGenerator.generateDocumentSupport();
+
         // Generate a struct to handle unknown tags in unions
         List<UnionShape> unions = serviceShapes.stream()
                 .map(Shape::asUnionShape)
@@ -182,25 +188,25 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
 
         if (protocolGenerator != null) {
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol() + " on " + service.getId());
-            ProtocolGenerator.GenerationContext context = new ProtocolGenerator.GenerationContext();
-            context.setProtocolName(protocolGenerator.getProtocolName());
-            context.setIntegrations(integrations);
-            context.setModel(model);
-            context.setService(service);
-            context.setSettings(settings);
-            context.setSymbolProvider(symbolProvider);
-            context.setDelegator(writers);
+            ProtocolGenerator.GenerationContext.Builder contextBuilder = ProtocolGenerator.GenerationContext.builder()
+                    .protocolName(protocolGenerator.getProtocolName())
+                    .integrations(integrations)
+                    .model(model)
+                    .service(service)
+                    .settings(settings)
+                    .symbolProvider(symbolProvider)
+                    .delegator(writers);
 
             LOGGER.info("Generating serde for protocol " + protocolGenerator.getProtocol()
                     + " on " + service.getId());
             writers.useFileWriter("serializers.go", settings.getModuleName(), writer -> {
-                context.setWriter(writer);
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateRequestSerializers(context);
                 protocolGenerator.generateSharedSerializerComponents(context);
             });
 
             writers.useFileWriter("deserializers.go", settings.getModuleName(), writer -> {
-                context.setWriter(writer);
+                ProtocolGenerator.GenerationContext context = contextBuilder.writer(writer).build();
                 protocolGenerator.generateResponseDeserializers(context);
                 protocolGenerator.generateSharedDeserializerComponents(context);
             });
@@ -208,9 +214,10 @@ final class CodegenVisitor extends ShapeVisitor.Default<Void> {
             LOGGER.info("Generating protocol " + protocolGenerator.getProtocol()
                     + " unit tests for " + service.getId());
             writers.useFileWriter("protocol_test.go", settings.getModuleName(), writer -> {
-                context.setWriter(writer);
-                protocolGenerator.generateProtocolTests(context);
+                protocolGenerator.generateProtocolTests(contextBuilder.writer(writer).build());
             });
+
+            protocolDocumentGenerator.generateInternalDocumentTypes(protocolGenerator, contextBuilder.build());
         }
 
 
